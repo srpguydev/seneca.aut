@@ -132,59 +132,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Fetch answers from API
     async function fetchAnswers(courseId, sectionId) {
-        const API_BASE_URL = 'https://api.senecalearning.com';
-        const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
-
         try {
-            // First try direct access
-            const directResponse = await fetch(
-                `${API_BASE_URL}/api/courses/${courseId}/sections/${sectionId}/content`,
+            const response = await fetch(
+                `https://senai.uk/seneca?courseId=${courseId}&sectionId=${sectionId}`,
                 {
                     headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'Origin': 'https://app.senecalearning.com'
-                    }
-                }
-            );
-
-            if (directResponse.ok) {
-                return await directResponse.json();
-            }
-
-            // If direct access fails, try through CORS proxy
-            const proxyResponse = await fetch(
-                `${CORS_PROXY}${API_BASE_URL}/api/courses/${courseId}/sections/${sectionId}/content`,
-                {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'Origin': 'https://app.senecalearning.com'
+                        'Accept': 'application/json'
                     }
                 }
             );
             
-            if (!proxyResponse.ok) {
+            if (!response.ok) {
                 throw new Error('Failed to fetch answers. Please try again later.');
             }
 
-            const data = await proxyResponse.json();
+            const data = await response.json();
             
-            // Transform the data to match our expected format
-            if (data && data.content) {
-                return {
-                    title: data.title || 'Course Content',
-                    questions: data.content.map(item => ({
-                        text: item.question || item.text || 'Question not available',
-                        answer: item.answer || item.correctAnswer || (item.answers ? item.answers.correct : null)
-                    })).filter(q => q.answer !== null)
-                };
+            if (!data || !data.answers) {
+                throw new Error('No answers found for this course section.');
             }
 
-            throw new Error('No answers found in the response.');
+            return {
+                title: 'Course Answers',
+                questions: data.answers
+            };
         } catch (error) {
             console.error('Fetch error:', error);
-            throw new Error('Failed to fetch answers. Please check your internet connection or try again later.');
+            throw error;
         }
     }
 
@@ -200,14 +174,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Create a module section for all answers
         const moduleTitle = document.createElement('h3');
         moduleTitle.className = 'text-xl font-semibold mb-4';
-        moduleTitle.textContent = data.title || 'Course Answers';
+        moduleTitle.textContent = data.title;
         answersListDiv.appendChild(moduleTitle);
 
         // Display each answer
-        data.questions.forEach(question => {
+        data.questions.forEach(answer => {
             const answerHtml = createAnswerCard(
-                question.text,
-                question.answer,
+                answer.question,
+                answer.answer,
                 'Seneca'
             );
             const tempDiv = document.createElement('div');
