@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const API_BASE_URL = 'https://senai.uk/seneca';  // Updated API endpoint
+    const API_BASE_URL = 'https://api.senecalearning.com';  // Official Seneca API
     
     // DOM Elements
     const courseUrlInput = document.getElementById('courseUrl');
@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function displayAnswers(data) {
         answersListDiv.innerHTML = '';
         
-        if (!data || !data.answers || data.answers.length === 0) {
+        if (!data || !data.content || !data.content.questions) {
             showError('No answers found for this course section.');
             return;
         }
@@ -82,14 +82,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // Create a module section for all answers
         const moduleTitle = document.createElement('h3');
         moduleTitle.className = 'module-title';
-        moduleTitle.textContent = 'Course Answers';
+        moduleTitle.textContent = data.content.title || 'Course Answers';
         answersListDiv.appendChild(moduleTitle);
 
         // Display each answer
-        data.answers.forEach(item => {
+        data.content.questions.forEach(item => {
             const answerHtml = createAnswerCard(
-                item.question,
-                Array.isArray(item.answer) ? item.answer.join(', ') : item.answer
+                item.text || item.question,
+                Array.isArray(item.correctAnswer) ? item.correctAnswer.join(', ') : item.correctAnswer
             );
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = answerHtml;
@@ -103,7 +103,13 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchAnswers(courseId, sectionId) {
         try {
             const response = await fetch(
-                `${API_BASE_URL}?courseId=${courseId}&sectionId=${sectionId}`
+                `${API_BASE_URL}/courses/${courseId}/sections/${sectionId}/content`,
+                {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                }
             );
             
             if (!response.ok) {
