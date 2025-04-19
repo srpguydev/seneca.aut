@@ -107,59 +107,72 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
-    // Extract answer based on question type
-    function extractAnswer(question) {
-        if (!question) return { answer: 'No answer available', type: 'unknown' };
-
-        if (question.answer) {
-            return { answer: question.answer, type: 'direct' };
-        }
-
-        if (question.correctAnswer) {
-            return { answer: question.correctAnswer, type: 'multiple choice' };
-        }
-
-        if (question.answers && question.answers.correct) {
-            return { answer: question.answers.correct, type: 'correct answer' };
-        }
-
-        if (question.data && question.data.correctAnswer) {
-            return { answer: question.data.correctAnswer, type: 'data based' };
-        }
-
-        return { answer: 'Answer format not recognized', type: 'unknown' };
-    }
-
     // Fetch answers from API
     async function fetchAnswers(courseId, sectionId) {
         try {
-            const response = await fetch(
-                `https://senai.uk/seneca?courseId=${courseId}&sectionId=${sectionId}`,
+            // Step 1: Get the signed URL
+            const signedUrlResponse = await fetch(
+                `https://seneca.ellsies.tech/api/courses/${courseId}/signed-url?sectionId=${sectionId}`,
                 {
                     headers: {
                         'Accept': 'application/json'
                     }
                 }
             );
-            
-            if (!response.ok) {
-                throw new Error('Failed to fetch answers. Please try again later.');
+
+            if (!signedUrlResponse.ok) {
+                throw new Error('Failed to get course data. Please try again later.');
             }
 
-            const data = await response.json();
+            const signedUrlData = await signedUrlResponse.json();
             
-            if (!data || !data.answers) {
-                throw new Error('No answers found for this course section.');
+            if (!signedUrlData || !signedUrlData.url) {
+                throw new Error('Invalid course data received.');
+            }
+
+            // Step 2: Fetch content using the signed URL
+            const contentResponse = await fetch(signedUrlData.url);
+            
+            if (!contentResponse.ok) {
+                throw new Error('Failed to fetch course content.');
+            }
+
+            const contentData = await contentResponse.json();
+
+            if (!contentData || !contentData.contentModules) {
+                throw new Error('No content found for this course section.');
+            }
+
+            // Step 3: Extract answers from content modules
+            const answers = contentData.contentModules
+                .filter(module => module.content && (module.content.answer || module.content.correctAnswer || (module.content.answers && module.content.answers.correct)))
+                .map(module => ({
+                    question: module.content.question || module.content.text || 'Question not available',
+                    answer: module.content.answer || module.content.correctAnswer || (module.content.answers ? module.content.answers.correct : null),
+                    type: getQuestionType(module.content)
+                }));
+
+            if (answers.length === 0) {
+                throw new Error('No answers found in this section.');
             }
 
             return {
-                title: 'Course Answers',
-                questions: data.answers
+                title: contentData.title || 'Course Answers',
+                questions: answers
             };
         } catch (error) {
             console.error('Fetch error:', error);
             throw error;
         }
+    }
+
+    // Helper function to determine question type
+    function getQuestionType(content) {
+        if (content.type) return content.type;
+        if (content.answers && Array.isArray(content.answers.options)) return 'multiple-choice';
+        if (content.answer && typeof content.answer === 'string') return 'text';
+        if (content.answers && content.answers.correct && Array.isArray(content.answers.correct)) return 'list';
+        return 'unknown';
     }
 
     // Display answers in the UI
@@ -178,11 +191,11 @@ document.addEventListener('DOMContentLoaded', () => {
         answersListDiv.appendChild(moduleTitle);
 
         // Display each answer
-        data.questions.forEach(answer => {
+        data.questions.forEach(item => {
             const answerHtml = createAnswerCard(
-                answer.question,
-                answer.answer,
-                'Seneca'
+                item.question,
+                item.answer,
+                item.type
             );
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = answerHtml;
