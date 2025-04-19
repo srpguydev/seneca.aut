@@ -130,6 +130,64 @@ document.addEventListener('DOMContentLoaded', () => {
         return { answer: 'Answer format not recognized', type: 'unknown' };
     }
 
+    // Fetch answers from API
+    async function fetchAnswers(courseId, sectionId) {
+        const API_BASE_URL = 'https://api.senecalearning.com';
+        const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
+
+        try {
+            // First try direct access
+            const directResponse = await fetch(
+                `${API_BASE_URL}/api/courses/${courseId}/sections/${sectionId}/content`,
+                {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'Origin': 'https://app.senecalearning.com'
+                    }
+                }
+            );
+
+            if (directResponse.ok) {
+                return await directResponse.json();
+            }
+
+            // If direct access fails, try through CORS proxy
+            const proxyResponse = await fetch(
+                `${CORS_PROXY}${API_BASE_URL}/api/courses/${courseId}/sections/${sectionId}/content`,
+                {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'Origin': 'https://app.senecalearning.com'
+                    }
+                }
+            );
+            
+            if (!proxyResponse.ok) {
+                throw new Error('Failed to fetch answers. Please try again later.');
+            }
+
+            const data = await proxyResponse.json();
+            
+            // Transform the data to match our expected format
+            if (data && data.content) {
+                return {
+                    title: data.title || 'Course Content',
+                    questions: data.content.map(item => ({
+                        text: item.question || item.text || 'Question not available',
+                        answer: item.answer || item.correctAnswer || (item.answers ? item.answers.correct : null)
+                    })).filter(q => q.answer !== null)
+                };
+            }
+
+            throw new Error('No answers found in the response.');
+        } catch (error) {
+            console.error('Fetch error:', error);
+            throw new Error('Failed to fetch answers. Please check your internet connection or try again later.');
+        }
+    }
+
     // Display answers in the UI
     function displayAnswers(data) {
         answersListDiv.innerHTML = '';
@@ -147,11 +205,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Display each answer
         data.questions.forEach(question => {
-            const { answer, type } = extractAnswer(question);
             const answerHtml = createAnswerCard(
-                question.text || question.question || 'Question not available',
-                answer,
-                type
+                question.text,
+                question.answer,
+                'Seneca'
             );
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = answerHtml;
@@ -159,50 +216,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         resultsDiv.classList.remove('hidden');
-    }
-
-    // Fetch answers from API
-    async function fetchAnswers(courseId, sectionId) {
-        const API_BASE_URL = 'https://course-content.senecalearning.com/api/v1';
-        const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
-
-        try {
-            // First try direct access
-            const directResponse = await fetch(
-                `${API_BASE_URL}/courses/${courseId}/sections/${sectionId}`,
-                {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
-
-            if (directResponse.ok) {
-                return await directResponse.json();
-            }
-
-            // If direct access fails, try through CORS proxy
-            const proxyResponse = await fetch(
-                `${CORS_PROXY}${API_BASE_URL}/courses/${courseId}/sections/${sectionId}`,
-                {
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json',
-                        'Origin': 'https://app.senecalearning.com'
-                    }
-                }
-            );
-            
-            if (!proxyResponse.ok) {
-                throw new Error('Failed to fetch answers. Please try again later.');
-            }
-
-            return await proxyResponse.json();
-        } catch (error) {
-            console.error('Fetch error:', error);
-            throw new Error('Failed to fetch answers. Please check your internet connection or try again later.');
-        }
     }
 
     // Handle get answers button click
