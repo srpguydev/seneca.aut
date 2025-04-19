@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const API_BASE_URL = 'https://seneca.ellsies.tech/api';
+    const API_BASE_URL = 'https://senai.uk/seneca';  // Updated API endpoint
     
     // DOM Elements
     const courseUrlInput = document.getElementById('courseUrl');
@@ -74,30 +74,26 @@ document.addEventListener('DOMContentLoaded', () => {
     function displayAnswers(data) {
         answersListDiv.innerHTML = '';
         
-        if (!data.contentModules || data.contentModules.length === 0) {
+        if (!data || !data.answers || data.answers.length === 0) {
             showError('No answers found for this course section.');
             return;
         }
 
-        data.contentModules.forEach(module => {
-            if (module.questions && module.questions.length > 0) {
-                // Add module title
-                const moduleTitle = document.createElement('h3');
-                moduleTitle.className = 'module-title';
-                moduleTitle.textContent = module.title || 'Module Questions';
-                answersListDiv.appendChild(moduleTitle);
+        // Create a module section for all answers
+        const moduleTitle = document.createElement('h3');
+        moduleTitle.className = 'module-title';
+        moduleTitle.textContent = 'Course Answers';
+        answersListDiv.appendChild(moduleTitle);
 
-                // Add questions and answers
-                module.questions.forEach(question => {
-                    const answerHtml = createAnswerCard(
-                        question.text,
-                        Array.isArray(question.answer) ? question.answer.join(', ') : question.answer
-                    );
-                    const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = answerHtml;
-                    answersListDiv.appendChild(tempDiv.firstElementChild);
-                });
-            }
+        // Display each answer
+        data.answers.forEach(item => {
+            const answerHtml = createAnswerCard(
+                item.question,
+                Array.isArray(item.answer) ? item.answer.join(', ') : item.answer
+            );
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = answerHtml;
+            answersListDiv.appendChild(tempDiv.firstElementChild);
         });
 
         resultsDiv.classList.remove('hidden');
@@ -106,24 +102,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // Fetch answers from API
     async function fetchAnswers(courseId, sectionId) {
         try {
-            // Get signed URL
-            const signedUrlResponse = await fetch(
-                `${API_BASE_URL}/courses/${courseId}/signed-url?sectionId=${sectionId}`
+            const response = await fetch(
+                `${API_BASE_URL}?courseId=${courseId}&sectionId=${sectionId}`
             );
             
-            if (!signedUrlResponse.ok) {
-                throw new Error('Failed to get access to answers. Please try again later.');
+            if (!response.ok) {
+                throw new Error('Failed to fetch answers. Please try again later.');
             }
 
-            const { url } = await signedUrlResponse.json();
-            
-            // Fetch content
-            const contentResponse = await fetch(url);
-            if (!contentResponse.ok) {
-                throw new Error('Failed to load answers. Please try again later.');
-            }
-
-            return await contentResponse.json();
+            return await response.json();
         } catch (error) {
             throw new Error(error.message || 'Failed to fetch answers. Please check your internet connection.');
         }
